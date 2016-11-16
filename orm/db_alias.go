@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -8,15 +22,17 @@ import (
 	"time"
 )
 
-// database driver constant int.
+// DriverType database driver constant int.
 type DriverType int
 
+// Enum the Database driver
 const (
-	_           DriverType = iota // int enum type
-	DR_MySQL                      // mysql
-	DR_Sqlite                     // sqlite
-	DR_Oracle                     // oracle
-	DR_Postgres                   // pgsql
+	_          DriverType = iota // int enum type
+	DRMySQL                      // mysql
+	DRSqlite                     // sqlite
+	DROracle                     // oracle
+	DRPostgres                   // pgsql
+	DRTiDB                       // TiDB
 )
 
 // database driver string.
@@ -39,15 +55,18 @@ var _ Driver = new(driver)
 var (
 	dataBaseCache = &_dbCache{cache: make(map[string]*alias)}
 	drivers       = map[string]DriverType{
-		"mysql":    DR_MySQL,
-		"postgres": DR_Postgres,
-		"sqlite3":  DR_Sqlite,
+		"mysql":    DRMySQL,
+		"postgres": DRPostgres,
+		"sqlite3":  DRSqlite,
+		"tidb":     DRTiDB,
+		"oracle":   DROracle,
 	}
 	dbBasers = map[DriverType]dbBaser{
-		DR_MySQL:    newdbBaseMysql(),
-		DR_Sqlite:   newdbBaseSqlite(),
-		DR_Oracle:   newdbBaseMysql(),
-		DR_Postgres: newdbBasePostgres(),
+		DRMySQL:    newdbBaseMysql(),
+		DRSqlite:   newdbBaseSqlite(),
+		DROracle:   newdbBaseOracle(),
+		DRPostgres: newdbBasePostgres(),
+		DRTiDB:     newdbBaseTidb(),
 	}
 )
 
@@ -61,7 +80,7 @@ type _dbCache struct {
 func (ac *_dbCache) add(name string, al *alias) (added bool) {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
-	if _, ok := ac.cache[name]; ok == false {
+	if _, ok := ac.cache[name]; !ok {
 		ac.cache[name] = al
 		added = true
 	}
@@ -105,7 +124,7 @@ func detectTZ(al *alias) {
 	}
 
 	switch al.Driver {
-	case DR_MySQL:
+	case DRMySQL:
 		row := al.DB.QueryRow("SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP)")
 		var tz string
 		row.Scan(&tz)
@@ -130,13 +149,13 @@ func detectTZ(al *alias) {
 		if engine != "" {
 			al.Engine = engine
 		} else {
-			engine = "INNODB"
+			al.Engine = "INNODB"
 		}
 
-	case DR_Sqlite:
+	case DRSqlite, DROracle:
 		al.TZ = time.UTC
 
-	case DR_Postgres:
+	case DRPostgres:
 		row := al.DB.QueryRow("SELECT current_setting('TIMEZONE')")
 		var tz string
 		row.Scan(&tz)
@@ -174,12 +193,13 @@ func addAliasWthDB(aliasName, driverName string, db *sql.DB) (*alias, error) {
 	return al, nil
 }
 
+// AddAliasWthDB add a aliasName for the drivename
 func AddAliasWthDB(aliasName, driverName string, db *sql.DB) error {
 	_, err := addAliasWthDB(aliasName, driverName, db)
 	return err
 }
 
-// Setting the database connect params. Use the database driver self dataSource args.
+// RegisterDataBase Setting the database connect params. Use the database driver self dataSource args.
 func RegisterDataBase(aliasName, driverName, dataSource string, params ...int) error {
 	var (
 		err error
@@ -222,7 +242,7 @@ end:
 	return err
 }
 
-// Register a database driver use specify driver name, this can be definition the driver is which database type.
+// RegisterDriver Register a database driver use specify driver name, this can be definition the driver is which database type.
 func RegisterDriver(driverName string, typ DriverType) error {
 	if t, ok := drivers[driverName]; ok == false {
 		drivers[driverName] = typ
@@ -234,7 +254,7 @@ func RegisterDriver(driverName string, typ DriverType) error {
 	return nil
 }
 
-// Change the database default used timezone
+// SetDataBaseTZ Change the database default used timezone
 func SetDataBaseTZ(aliasName string, tz *time.Location) error {
 	if al, ok := dataBaseCache.get(aliasName); ok {
 		al.TZ = tz
@@ -244,14 +264,14 @@ func SetDataBaseTZ(aliasName string, tz *time.Location) error {
 	return nil
 }
 
-// Change the max idle conns for *sql.DB, use specify database alias name
+// SetMaxIdleConns Change the max idle conns for *sql.DB, use specify database alias name
 func SetMaxIdleConns(aliasName string, maxIdleConns int) {
 	al := getDbAlias(aliasName)
 	al.MaxIdleConns = maxIdleConns
 	al.DB.SetMaxIdleConns(maxIdleConns)
 }
 
-// Change the max open conns for *sql.DB, use specify database alias name
+// SetMaxOpenConns Change the max open conns for *sql.DB, use specify database alias name
 func SetMaxOpenConns(aliasName string, maxOpenConns int) {
 	al := getDbAlias(aliasName)
 	al.MaxOpenConns = maxOpenConns
@@ -261,7 +281,7 @@ func SetMaxOpenConns(aliasName string, maxOpenConns int) {
 	}
 }
 
-// Get *sql.DB from registered database by db alias name.
+// GetDB Get *sql.DB from registered database by db alias name.
 // Use "default" as alias name if you not set.
 func GetDB(aliasNames ...string) (*sql.DB, error) {
 	var name string
@@ -270,9 +290,9 @@ func GetDB(aliasNames ...string) (*sql.DB, error) {
 	} else {
 		name = "default"
 	}
-	if al, ok := dataBaseCache.get(name); ok {
+	al, ok := dataBaseCache.get(name)
+	if ok {
 		return al.DB, nil
-	} else {
-		return nil, fmt.Errorf("DataBase of alias name `%s` not found\n", name)
 	}
+	return nil, fmt.Errorf("DataBase of alias name `%s` not found\n", name)
 }

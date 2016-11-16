@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -150,7 +164,7 @@ func (t *dbTables) parseRelated(rels []string, depth int) {
 }
 
 // generate join string.
-func (t *dbTables) getJoinSql() (join string) {
+func (t *dbTables) getJoinSQL() (join string) {
 	Q := t.base.TableQuote()
 
 	for _, jt := range t.tables {
@@ -172,7 +186,7 @@ func (t *dbTables) getJoinSql() (join string) {
 		table = jt.mi.table
 
 		switch {
-		case jt.fi.fieldType == RelManyToMany || jt.fi.reverse && jt.fi.reverseFieldInfo.fieldType == RelManyToMany:
+		case jt.fi.fieldType == RelManyToMany || jt.fi.fieldType == RelReverseMany || jt.fi.reverse && jt.fi.reverseFieldInfo.fieldType == RelManyToMany:
 			c1 = jt.fi.mi.fields.pk.column
 			for _, ffi := range jt.mi.fields.fieldsRel {
 				if jt.fi.mi == ffi.relModelInfo {
@@ -206,7 +220,7 @@ func (t *dbTables) parseExprs(mi *modelInfo, exprs []string) (index, name string
 	)
 
 	num := len(exprs) - 1
-	names := make([]string, 0)
+	var names []string
 
 	inner := true
 
@@ -312,7 +326,7 @@ loopFor:
 }
 
 // generate condition sql.
-func (t *dbTables) getCondSql(cond *Condition, sub bool, tz *time.Location) (where string, params []interface{}) {
+func (t *dbTables) getCondSQL(cond *Condition, sub bool, tz *time.Location) (where string, params []interface{}) {
 	if cond == nil || cond.IsEmpty() {
 		return
 	}
@@ -333,7 +347,7 @@ func (t *dbTables) getCondSql(cond *Condition, sub bool, tz *time.Location) (whe
 			where += "NOT "
 		}
 		if p.isCond {
-			w, ps := t.getCondSql(p.cond, true, tz)
+			w, ps := t.getCondSQL(p.cond, true, tz)
 			if w != "" {
 				w = fmt.Sprintf("( %s) ", w)
 			}
@@ -358,12 +372,12 @@ func (t *dbTables) getCondSql(cond *Condition, sub bool, tz *time.Location) (whe
 				operator = "exact"
 			}
 
-			operSql, args := t.base.GenerateOperatorSql(mi, fi, operator, p.args, tz)
+			operSQL, args := t.base.GenerateOperatorSQL(mi, fi, operator, p.args, tz)
 
 			leftCol := fmt.Sprintf("%s.%s%s%s", index, Q, fi.column, Q)
 			t.base.GenerateOperatorLeftCol(fi, operator, &leftCol)
 
-			where += fmt.Sprintf("%s %s ", leftCol, operSql)
+			where += fmt.Sprintf("%s %s ", leftCol, operSQL)
 			params = append(params, args...)
 
 		}
@@ -376,8 +390,32 @@ func (t *dbTables) getCondSql(cond *Condition, sub bool, tz *time.Location) (whe
 	return
 }
 
+// generate group sql.
+func (t *dbTables) getGroupSQL(groups []string) (groupSQL string) {
+	if len(groups) == 0 {
+		return
+	}
+
+	Q := t.base.TableQuote()
+
+	groupSqls := make([]string, 0, len(groups))
+	for _, group := range groups {
+		exprs := strings.Split(group, ExprSep)
+
+		index, _, fi, suc := t.parseExprs(t.mi, exprs)
+		if suc == false {
+			panic(fmt.Errorf("unknown field/column name `%s`", strings.Join(exprs, ExprSep)))
+		}
+
+		groupSqls = append(groupSqls, fmt.Sprintf("%s.%s%s%s", index, Q, fi.column, Q))
+	}
+
+	groupSQL = fmt.Sprintf("GROUP BY %s ", strings.Join(groupSqls, ", "))
+	return
+}
+
 // generate order sql.
-func (t *dbTables) getOrderSql(orders []string) (orderSql string) {
+func (t *dbTables) getOrderSQL(orders []string) (orderSQL string) {
 	if len(orders) == 0 {
 		return
 	}
@@ -401,12 +439,12 @@ func (t *dbTables) getOrderSql(orders []string) (orderSql string) {
 		orderSqls = append(orderSqls, fmt.Sprintf("%s.%s%s%s %s", index, Q, fi.column, Q, asc))
 	}
 
-	orderSql = fmt.Sprintf("ORDER BY %s ", strings.Join(orderSqls, ", "))
+	orderSQL = fmt.Sprintf("ORDER BY %s ", strings.Join(orderSqls, ", "))
 	return
 }
 
 // generate limit sql.
-func (t *dbTables) getLimitSql(mi *modelInfo, offset int64, limit int64) (limits string) {
+func (t *dbTables) getLimitSQL(mi *modelInfo, offset int64, limit int64) (limits string) {
 	if limit == 0 {
 		limit = int64(DefaultRowsLimit)
 	}

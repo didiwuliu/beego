@@ -1,10 +1,20 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package beego
 
-import (
-	"mime"
-)
-
-var mimemaps map[string]string = map[string]string{
+var mimemaps = map[string]string{
 	".3dm":         "x-world/x-3dmf",
 	".3dmf":        "x-world/x-3dmf",
 	".7z":          "application/x-7z-compressed",
@@ -26,6 +36,7 @@ var mimemaps map[string]string = map[string]string{
 	".ani":         "application/x-navi-animation",
 	".aos":         "application/x-nokia-9000-communicator-add-on-software",
 	".aps":         "application/mime",
+	".apk":         "application/vnd.android.package-archive",
 	".arc":         "application/x-arc-compressed",
 	".arj":         "application/arj",
 	".art":         "image/x-jg",
@@ -328,7 +339,7 @@ var mimemaps map[string]string = map[string]string{
 	".pvu":         "paleovu/x-pv",
 	".pwz":         "application/vndms-powerpoint",
 	".py":          "text/x-scriptphyton",
-	".pyc":         "applicaiton/x-bytecodepython",
+	".pyc":         "application/x-bytecodepython",
 	".qcp":         "audio/vndqcelp",
 	".qd3":         "x-world/x-3dmf",
 	".qd3d":        "x-world/x-3dmf",
@@ -542,11 +553,4 @@ var mimemaps map[string]string = map[string]string{
 	".xpi":         "application/x-xpinstall",
 	".oex":         "application/x-opera-extension",
 	".mustache":    "text/html",
-}
-
-func initMime() error {
-	for k, v := range mimemaps {
-		mime.AddExtensionType(k, v)
-	}
-	return nil
 }

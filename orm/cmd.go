@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -32,7 +46,7 @@ func printHelp(errs ...string) {
 	os.Exit(2)
 }
 
-// listen for orm command and then run it if command arguments passed.
+// RunCommand listen for orm command and then run it if command arguments passed.
 func RunCommand() {
 	if len(os.Args) < 2 || os.Args[1] != "orm" {
 		return
@@ -86,7 +100,7 @@ func (d *commandSyncDb) Parse(args []string) {
 func (d *commandSyncDb) Run() error {
 	var drops []string
 	if d.force {
-		drops = getDbDropSql(d.al)
+		drops = getDbDropSQL(d.al)
 	}
 
 	db := d.al.DB
@@ -110,7 +124,7 @@ func (d *commandSyncDb) Run() error {
 		}
 	}
 
-	sqls, indexes := getDbCreateSql(d.al)
+	sqls, indexes := getDbCreateSQL(d.al)
 
 	tables, err := d.al.DbBaser.GetTables(db)
 	if err != nil {
@@ -166,7 +180,7 @@ func (d *commandSyncDb) Run() error {
 						fmt.Printf("create index `%s` for table `%s`\n", idx.Name, idx.Table)
 					}
 
-					query := idx.Sql
+					query := idx.SQL
 					_, err := db.Exec(query)
 					if d.verbose {
 						fmt.Printf("    %s\n", query)
@@ -189,7 +203,7 @@ func (d *commandSyncDb) Run() error {
 
 		queries := []string{sqls[i]}
 		for _, idx := range indexes[mi.table] {
-			queries = append(queries, idx.Sql)
+			queries = append(queries, idx.SQL)
 		}
 
 		for _, query := range queries {
@@ -214,12 +228,12 @@ func (d *commandSyncDb) Run() error {
 }
 
 // database creation commander interface implement.
-type commandSqlAll struct {
+type commandSQLAll struct {
 	al *alias
 }
 
 // parse orm command line arguments.
-func (d *commandSqlAll) Parse(args []string) {
+func (d *commandSQLAll) Parse(args []string) {
 	var name string
 
 	flagSet := flag.NewFlagSet("orm command: sqlall", flag.ExitOnError)
@@ -230,13 +244,13 @@ func (d *commandSqlAll) Parse(args []string) {
 }
 
 // run orm line command.
-func (d *commandSqlAll) Run() error {
-	sqls, indexes := getDbCreateSql(d.al)
+func (d *commandSQLAll) Run() error {
+	sqls, indexes := getDbCreateSQL(d.al)
 	var all []string
 	for i, mi := range modelCache.allOrdered() {
 		queries := []string{sqls[i]}
 		for _, idx := range indexes[mi.table] {
-			queries = append(queries, idx.Sql)
+			queries = append(queries, idx.SQL)
 		}
 		sql := strings.Join(queries, "\n")
 		all = append(all, sql)
@@ -248,10 +262,10 @@ func (d *commandSqlAll) Run() error {
 
 func init() {
 	commands["syncdb"] = new(commandSyncDb)
-	commands["sqlall"] = new(commandSqlAll)
+	commands["sqlall"] = new(commandSQLAll)
 }
 
-// run syncdb command line.
+// RunSyncdb run syncdb command line.
 // name means table's alias name. default is "default".
 // force means run next sql if the current is error.
 // verbose means show all info when running command or not.

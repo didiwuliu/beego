@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -11,11 +25,12 @@ type colValue struct {
 
 type operator int
 
+// define Col operations
 const (
-	Col_Add operator = iota
-	Col_Minus
-	Col_Multiply
-	Col_Except
+	ColAdd operator = iota
+	ColMinus
+	ColMultiply
+	ColExcept
 )
 
 // ColValue do the field raw changes. e.g Nums = Nums + 10. usage:
@@ -24,7 +39,7 @@ const (
 // 	}
 func ColValue(opt operator, value interface{}) interface{} {
 	switch opt {
-	case Col_Add, Col_Minus, Col_Multiply, Col_Except:
+	case ColAdd, ColMinus, ColMultiply, ColExcept:
 	default:
 		panic(fmt.Errorf("orm.ColValue wrong operator"))
 	}
@@ -46,7 +61,9 @@ type querySet struct {
 	relDepth int
 	limit    int64
 	offset   int64
+	groups   []string
 	orders   []string
+	distinct bool
 	orm      *orm
 }
 
@@ -91,6 +108,12 @@ func (o querySet) Offset(offset interface{}) QuerySeter {
 	return &o
 }
 
+// add GROUP expression
+func (o querySet) GroupBy(exprs ...string) QuerySeter {
+	o.groups = exprs
+	return &o
+}
+
 // add ORDER expression.
 // "column" means ASC, "-column" means DESC.
 func (o querySet) OrderBy(exprs ...string) QuerySeter {
@@ -98,17 +121,22 @@ func (o querySet) OrderBy(exprs ...string) QuerySeter {
 	return &o
 }
 
+// add DISTINCT to SELECT
+func (o querySet) Distinct() QuerySeter {
+	o.distinct = true
+	return &o
+}
+
 // set relation model to query together.
 // it will query relation models and assign to parent model.
 func (o querySet) RelatedSel(params ...interface{}) QuerySeter {
-	var related []string
 	if len(params) == 0 {
 		o.relDepth = DefaultRelsDepth
 	} else {
 		for _, p := range params {
 			switch val := p.(type) {
 			case string:
-				related = append(o.related, val)
+				o.related = append(o.related, val)
 			case int:
 				o.relDepth = val
 			default:
@@ -116,7 +144,6 @@ func (o querySet) RelatedSel(params ...interface{}) QuerySeter {
 			}
 		}
 	}
-	o.related = related
 	return &o
 }
 
@@ -165,15 +192,17 @@ func (o *querySet) All(container interface{}, cols ...string) (int64, error) {
 // query one row data and map to containers.
 // cols means the columns when querying.
 func (o *querySet) One(container interface{}, cols ...string) error {
+	o.limit = 1
 	num, err := o.orm.alias.DbBaser.ReadBatch(o.orm.db, o, o.mi, o.cond, container, o.orm.alias.TZ, cols)
 	if err != nil {
 		return err
 	}
-	if num > 1 {
-		return ErrMultiRows
-	}
 	if num == 0 {
 		return ErrNoRows
+	}
+
+	if num > 1 {
+		return ErrMultiRows
 	}
 	return nil
 }
@@ -209,7 +238,6 @@ func (o *querySet) ValuesFlat(result *ParamsList, expr string) (int64, error) {
 // }
 func (o *querySet) RowsToMap(result *Params, keyCol, valueCol string) (int64, error) {
 	panic(ErrNotImplement)
-	return o.orm.alias.DbBaser.RowsTo(o.orm.db, o, o.mi, o.cond, result, keyCol, valueCol, o.orm.alias.TZ)
 }
 
 // query all rows into struct with specify key and value column name.
@@ -224,7 +252,6 @@ func (o *querySet) RowsToMap(result *Params, keyCol, valueCol string) (int64, er
 // }
 func (o *querySet) RowsToStruct(ptrStruct interface{}, keyCol, valueCol string) (int64, error) {
 	panic(ErrNotImplement)
-	return o.orm.alias.DbBaser.RowsTo(o.orm.db, o, o.mi, o.cond, ptrStruct, keyCol, valueCol, o.orm.alias.TZ)
 }
 
 // create new QuerySeter.

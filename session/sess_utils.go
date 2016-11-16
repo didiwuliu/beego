@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package session
 
 import (
@@ -14,6 +28,8 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/astaxie/beego/utils"
 )
 
 func init() {
@@ -27,7 +43,11 @@ func init() {
 	gob.Register(map[int]int64{})
 }
 
+// EncodeGob encode the obj to gob
 func EncodeGob(obj map[interface{}]interface{}) ([]byte, error) {
+	for _, v := range obj {
+		gob.Register(v)
+	}
 	buf := bytes.NewBuffer(nil)
 	enc := gob.NewEncoder(buf)
 	err := enc.Encode(obj)
@@ -37,6 +57,7 @@ func EncodeGob(obj map[interface{}]interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// DecodeGob decode data to map
 func DecodeGob(encoded []byte) (map[interface{}]interface{}, error) {
 	buf := bytes.NewBuffer(encoded)
 	dec := gob.NewDecoder(buf)
@@ -51,8 +72,8 @@ func DecodeGob(encoded []byte) (map[interface{}]interface{}, error) {
 // generateRandomKey creates a random key with the given strength.
 func generateRandomKey(strength int) []byte {
 	k := make([]byte, strength)
-	if _, err := io.ReadFull(rand.Reader, k); err != nil {
-		return nil
+	if n, err := io.ReadFull(rand.Reader, k); n != strength || err != nil {
+		return utils.RandomCreateBytes(strength)
 	}
 	return k
 }
@@ -159,13 +180,11 @@ func decodeCookie(block cipher.Block, hashKey, name, value string, gcmaxlifetime
 		return nil, err
 	}
 	// 5. DecodeGob.
-	if dst, err := DecodeGob(b); err != nil {
+	dst, err := DecodeGob(b)
+	if err != nil {
 		return nil, err
-	} else {
-		return dst, nil
 	}
-	// Done.
-	return nil, nil
+	return dst, nil
 }
 
 // Encoding -------------------------------------------------------------------

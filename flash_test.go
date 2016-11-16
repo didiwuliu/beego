@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package beego
 
 import (
@@ -11,12 +25,12 @@ type TestFlashController struct {
 	Controller
 }
 
-func (this *TestFlashController) TestWriteFlash() {
+func (t *TestFlashController) TestWriteFlash() {
 	flash := NewFlash()
 	flash.Notice("TestFlashString")
-	flash.Store(&this.Controller)
+	flash.Store(&t.Controller)
 	// we choose to serve json because we don't want to load a template html file
-	this.ServeJson(true)
+	t.ServeJSON(true)
 }
 
 func TestFlashHeader(t *testing.T) {
@@ -25,7 +39,7 @@ func TestFlashHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// setup the handler
-	handler := NewControllerRegistor()
+	handler := NewControllerRegister()
 	handler.Add("/", &TestFlashController{}, "get:TestWriteFlash")
 	handler.ServeHTTP(w, r)
 

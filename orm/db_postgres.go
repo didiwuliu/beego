@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -15,6 +29,8 @@ var postgresOperators = map[string]string{
 	"gte":         ">= ?",
 	"lt":          "< ?",
 	"lte":         "<= ?",
+	"eq":          "= ?",
+	"ne":          "!= ?",
 	"startswith":  "LIKE ?",
 	"endswith":    "LIKE ?",
 	"istartswith": "LIKE UPPER(?)",
@@ -40,6 +56,8 @@ var postgresTypes = map[string]string{
 	"uint64":          `bigint CHECK("%COL%" >= 0)`,
 	"float64":         "double precision",
 	"float64-decimal": "numeric(%d, %d)",
+	"json":            "json",
+	"jsonb":           "jsonb",
 }
 
 // postgresql dbBaser.
@@ -50,7 +68,7 @@ type dbBasePostgres struct {
 var _ dbBaser = new(dbBasePostgres)
 
 // get postgresql operator.
-func (d *dbBasePostgres) OperatorSql(operator string) string {
+func (d *dbBasePostgres) OperatorSQL(operator string) string {
 	return postgresOperators[operator]
 }
 
@@ -85,7 +103,7 @@ func (d *dbBasePostgres) ReplaceMarks(query *string) {
 	num := 0
 	for _, c := range q {
 		if c == '?' {
-			num += 1
+			num++
 		}
 	}
 	if num == 0 {
@@ -98,7 +116,7 @@ func (d *dbBasePostgres) ReplaceMarks(query *string) {
 		if c == '?' {
 			data = append(data, '$')
 			data = append(data, []byte(strconv.Itoa(num))...)
-			num += 1
+			num++
 		} else {
 			data = append(data, c)
 		}
@@ -107,14 +125,35 @@ func (d *dbBasePostgres) ReplaceMarks(query *string) {
 }
 
 // make returning sql support for postgresql.
-func (d *dbBasePostgres) HasReturningID(mi *modelInfo, query *string) (has bool) {
-	if mi.fields.pk.auto {
-		if query != nil {
-			*query = fmt.Sprintf(`%s RETURNING "%s"`, *query, mi.fields.pk.column)
-		}
-		has = true
+func (d *dbBasePostgres) HasReturningID(mi *modelInfo, query *string) bool {
+	fi := mi.fields.pk
+	if fi.fieldType&IsPositiveIntegerField == 0 && fi.fieldType&IsIntegerField == 0 {
+		return false
 	}
-	return
+
+	if query != nil {
+		*query = fmt.Sprintf(`%s RETURNING "%s"`, *query, fi.column)
+	}
+	return true
+}
+
+// sync auto key
+func (d *dbBasePostgres) setval(db dbQuerier, mi *modelInfo, autoFields []string) error {
+	if len(autoFields) == 0 {
+		return nil
+	}
+
+	Q := d.ins.TableQuote()
+	for _, name := range autoFields {
+		query := fmt.Sprintf("SELECT setval(pg_get_serial_sequence('%s', '%s'), (SELECT MAX(%s%s%s) FROM %s%s%s));",
+			mi.table, name,
+			Q, name, Q,
+			Q, mi.table, Q)
+		if _, err := db.Exec(query); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // show table sql for postgresql.

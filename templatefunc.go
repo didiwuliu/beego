@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package beego
 
 import (
@@ -18,6 +32,9 @@ func Substr(s string, start, length int) string {
 	if start < 0 {
 		start = 0
 	}
+	if start > len(bt) {
+		start = start % len(bt)
+	}
 	var end int
 	if (start + length) > (len(bt) - 1) {
 		end = len(bt)
@@ -27,27 +44,24 @@ func Substr(s string, start, length int) string {
 	return string(bt[start:end])
 }
 
-// Html2str returns escaping text convert from html.
-func Html2str(html string) string {
+// HTML2str returns escaping text convert from html.
+func HTML2str(html string) string {
 	src := string(html)
 
-	//将HTML标签全转换成小写
 	re, _ := regexp.Compile("\\<[\\S\\s]+?\\>")
 	src = re.ReplaceAllStringFunc(src, strings.ToLower)
 
-	//去除STYLE
+	//remove STYLE
 	re, _ = regexp.Compile("\\<style[\\S\\s]+?\\</style\\>")
 	src = re.ReplaceAllString(src, "")
 
-	//去除SCRIPT
+	//remove SCRIPT
 	re, _ = regexp.Compile("\\<script[\\S\\s]+?\\</script\\>")
 	src = re.ReplaceAllString(src, "")
 
-	//去除所有尖括号内的HTML代码，并换成换行符
 	re, _ = regexp.Compile("\\<[\\S\\s]+?\\>")
 	src = re.ReplaceAllString(src, "\n")
 
-	//去除连续的换行符
 	re, _ = regexp.Compile("\\s{2,}")
 	src = re.ReplaceAllString(src, "\n")
 
@@ -101,7 +115,7 @@ var datePatterns = []string{
 	"r", time.RFC1123Z,
 }
 
-// Parse Date use PHP time format.
+// DateParse Parse Date use PHP time format.
 func DateParse(dateString, format string) (time.Time, error) {
 	replacer := strings.NewReplacer(datePatterns...)
 	format = replacer.Replace(format)
@@ -125,7 +139,55 @@ func Compare(a, b interface{}) (equal bool) {
 	return
 }
 
-// Convert string to template.HTML type.
+// CompareNot !Compare
+func CompareNot(a, b interface{}) (equal bool) {
+	return !Compare(a, b)
+}
+
+// NotNil the same as CompareNot
+func NotNil(a interface{}) (isNil bool) {
+	return CompareNot(a, nil)
+}
+
+// GetConfig get the Appconfig
+func GetConfig(returnType, key string, defaultVal interface{}) (value interface{}, err error) {
+	switch returnType {
+	case "String":
+		value = AppConfig.String(key)
+	case "Bool":
+		value, err = AppConfig.Bool(key)
+	case "Int":
+		value, err = AppConfig.Int(key)
+	case "Int64":
+		value, err = AppConfig.Int64(key)
+	case "Float":
+		value, err = AppConfig.Float(key)
+	case "DIY":
+		value, err = AppConfig.DIY(key)
+	default:
+		err = errors.New("Config keys must be of type String, Bool, Int, Int64, Float, or DIY")
+	}
+
+	if err != nil {
+		if reflect.TypeOf(returnType) != reflect.TypeOf(defaultVal) {
+			err = errors.New("defaultVal type does not match returnType")
+		} else {
+			value, err = defaultVal, nil
+		}
+	} else if reflect.TypeOf(value).Kind() == reflect.String {
+		if value == "" {
+			if reflect.TypeOf(defaultVal).Kind() != reflect.String {
+				err = errors.New("defaultVal type must be a String if the returnType is a String")
+			} else {
+				value = defaultVal.(string)
+			}
+		}
+	}
+
+	return
+}
+
+// Str2html Convert string to template.HTML type.
 func Str2html(raw string) template.HTML {
 	return template.HTML(raw)
 }
@@ -178,23 +240,28 @@ func Htmlunquote(src string) string {
 	return strings.TrimSpace(text)
 }
 
-// UrlFor returns url string with another registered controller handler with params.
+// URLFor returns url string with another registered controller handler with params.
 //	usage:
-//	UrlFor(".index")
-//	print UrlFor("index")
-//	print UrlFor("login")
-//	print UrlFor("login", "next","/"")
-//	print UrlFor("profile", "username","John Doe")
+//
+//	URLFor(".index")
+//	print URLFor("index")
+//  router /login
+//	print URLFor("login")
+//	print URLFor("login", "next","/"")
+//  router /profile/:username
+//	print UrlFor("profile", ":username","John Doe")
 //	result:
 //	/
 //	/login
 //	/login?next=/
 //	/user/John%20Doe
-func UrlFor(endpoint string, values ...string) string {
-	return BeeApp.UrlFor(endpoint, values...)
+//
+//  more detail http://beego.me/docs/mvc/controller/urlbuilding.md
+func URLFor(endpoint string, values ...interface{}) string {
+	return BeeApp.Handlers.URLFor(endpoint, values...)
 }
 
-// returns script tag with src string.
+// AssetsJs returns script tag with src string.
 func AssetsJs(src string) template.HTML {
 	text := string(src)
 
@@ -203,8 +270,8 @@ func AssetsJs(src string) template.HTML {
 	return template.HTML(text)
 }
 
-// returns stylesheet link tag with src string.
-func AssetsCss(src string) template.HTML {
+// AssetsCSS returns stylesheet link tag with src string.
+func AssetsCSS(src string) template.HTML {
 	text := string(src)
 
 	text = "<link href=\"" + src + "\" rel=\"stylesheet\" />"
@@ -212,16 +279,9 @@ func AssetsCss(src string) template.HTML {
 	return template.HTML(text)
 }
 
-// parse form values to struct via tag.
-func ParseForm(form url.Values, obj interface{}) error {
-	objT := reflect.TypeOf(obj)
-	objV := reflect.ValueOf(obj)
-	if !isStructPtr(objT) {
-		return fmt.Errorf("%v must be  a struct pointer", obj)
-	}
-	objT = objT.Elem()
-	objV = objV.Elem()
-
+// ParseForm will parse form values to struct via tag.
+// Support for anonymous struct.
+func parseFormToStruct(form url.Values, objT reflect.Type, objV reflect.Value) error {
 	for i := 0; i < objT.NumField(); i++ {
 		fieldV := objV.Field(i)
 		if !fieldV.CanSet() {
@@ -229,6 +289,14 @@ func ParseForm(form url.Values, obj interface{}) error {
 		}
 
 		fieldT := objT.Field(i)
+		if fieldT.Anonymous && fieldT.Type.Kind() == reflect.Struct {
+			err := parseFormToStruct(form, fieldT.Type, fieldV)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
 		tags := strings.Split(fieldT.Tag.Get("form"), ",")
 		var tag string
 		if len(tags) == 0 || len(tags[0]) == 0 {
@@ -246,6 +314,14 @@ func ParseForm(form url.Values, obj interface{}) error {
 
 		switch fieldT.Type.Kind() {
 		case reflect.Bool:
+			if strings.ToLower(value) == "on" || strings.ToLower(value) == "1" || strings.ToLower(value) == "yes" {
+				fieldV.SetBool(true)
+				continue
+			}
+			if strings.ToLower(value) == "off" || strings.ToLower(value) == "0" || strings.ToLower(value) == "no" {
+				fieldV.SetBool(false)
+				continue
+			}
 			b, err := strconv.ParseBool(value)
 			if err != nil {
 				return err
@@ -273,18 +349,57 @@ func ParseForm(form url.Values, obj interface{}) error {
 			fieldV.Set(reflect.ValueOf(value))
 		case reflect.String:
 			fieldV.SetString(value)
+		case reflect.Struct:
+			switch fieldT.Type.String() {
+			case "time.Time":
+				format := time.RFC3339
+				if len(tags) > 1 {
+					format = tags[1]
+				}
+				t, err := time.ParseInLocation(format, value, time.Local)
+				if err != nil {
+					return err
+				}
+				fieldV.Set(reflect.ValueOf(t))
+			}
+		case reflect.Slice:
+			if fieldT.Type == sliceOfInts {
+				formVals := form[tag]
+				fieldV.Set(reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(int(1))), len(formVals), len(formVals)))
+				for i := 0; i < len(formVals); i++ {
+					val, err := strconv.Atoi(formVals[i])
+					if err != nil {
+						return err
+					}
+					fieldV.Index(i).SetInt(int64(val))
+				}
+			} else if fieldT.Type == sliceOfStrings {
+				formVals := form[tag]
+				fieldV.Set(reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf("")), len(formVals), len(formVals)))
+				for i := 0; i < len(formVals); i++ {
+					fieldV.Index(i).SetString(formVals[i])
+				}
+			}
 		}
 	}
 	return nil
 }
 
-// form types for RenderForm function
-var FormType = map[string]bool{
-	"text":     true,
-	"textarea": true,
-	"hidden":   true,
-	"password": true,
+// ParseForm will parse form values to struct via tag.
+func ParseForm(form url.Values, obj interface{}) error {
+	objT := reflect.TypeOf(obj)
+	objV := reflect.ValueOf(obj)
+	if !isStructPtr(objT) {
+		return fmt.Errorf("%v must be  a struct pointer", obj)
+	}
+	objT = objT.Elem()
+	objV = objV.Elem()
+
+	return parseFormToStruct(form, objT, objV)
 }
+
+var sliceOfInts = reflect.TypeOf([]int(nil))
+var sliceOfStrings = reflect.TypeOf([]string(nil))
 
 var unKind = map[reflect.Kind]bool{
 	reflect.Uintptr:       true,
@@ -300,7 +415,7 @@ var unKind = map[reflect.Kind]bool{
 	reflect.UnsafePointer: true,
 }
 
-// render object to form html.
+// RenderForm will render object to form html.
 // obj must be a struct pointer.
 func RenderForm(obj interface{}) template.HTML {
 	objT := reflect.TypeOf(obj)
@@ -319,42 +434,95 @@ func RenderForm(obj interface{}) template.HTML {
 		}
 
 		fieldT := objT.Field(i)
-		tags := strings.Split(fieldT.Tag.Get("form"), ",")
-		label := fieldT.Name + ": "
-		name := fieldT.Name
-		fType := "text"
 
-		switch len(tags) {
-		case 1:
-			if tags[0] == "-" {
-				continue
-			}
-			if len(tags[0]) > 0 {
-				name = tags[0]
-			}
-		case 2:
-			if len(tags[0]) > 0 {
-				name = tags[0]
-			}
-			if len(tags[1]) > 0 {
-				fType = tags[1]
-			}
-		case 3:
-			if len(tags[0]) > 0 {
-				name = tags[0]
-			}
-			if len(tags[1]) > 0 {
-				fType = tags[1]
-			}
-			if len(tags[2]) > 0 {
-				label = tags[2]
-			}
+		label, name, fType, id, class, ignored, required := parseFormTag(fieldT)
+		if ignored {
+			continue
 		}
 
-		raw = append(raw, fmt.Sprintf(`%v<input name="%v" type="%v" value="%v">`,
-			label, name, fType, fieldV.Interface()))
+		raw = append(raw, renderFormField(label, name, fType, fieldV.Interface(), id, class, required))
 	}
 	return template.HTML(strings.Join(raw, "</br>"))
+}
+
+// renderFormField returns a string containing HTML of a single form field.
+func renderFormField(label, name, fType string, value interface{}, id string, class string, required bool) string {
+	if id != "" {
+		id = " id=\"" + id + "\""
+	}
+
+	if class != "" {
+		class = " class=\"" + class + "\""
+	}
+
+	requiredString := ""
+	if required {
+		requiredString = " required"
+	}
+
+	if isValidForInput(fType) {
+		return fmt.Sprintf(`%v<input%v%v name="%v" type="%v" value="%v"%v>`, label, id, class, name, fType, value, requiredString)
+	}
+
+	return fmt.Sprintf(`%v<%v%v%v name="%v"%v>%v</%v>`, label, fType, id, class, name, requiredString, value, fType)
+}
+
+// isValidForInput checks if fType is a valid value for the `type` property of an HTML input element.
+func isValidForInput(fType string) bool {
+	validInputTypes := strings.Fields("text password checkbox radio submit reset hidden image file button search email url tel number range date month week time datetime datetime-local color")
+	for _, validType := range validInputTypes {
+		if fType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// parseFormTag takes the stuct-tag of a StructField and parses the `form` value.
+// returned are the form label, name-property, type and wether the field should be ignored.
+func parseFormTag(fieldT reflect.StructField) (label, name, fType string, id string, class string, ignored bool, required bool) {
+	tags := strings.Split(fieldT.Tag.Get("form"), ",")
+	label = fieldT.Name + ": "
+	name = fieldT.Name
+	fType = "text"
+	ignored = false
+	id = fieldT.Tag.Get("id")
+	class = fieldT.Tag.Get("class")
+
+	required = false
+	required_field := fieldT.Tag.Get("required")
+	if required_field != "-" && required_field != "" {
+		required, _ = strconv.ParseBool(required_field)
+	}
+
+	switch len(tags) {
+	case 1:
+		if tags[0] == "-" {
+			ignored = true
+		}
+		if len(tags[0]) > 0 {
+			name = tags[0]
+		}
+	case 2:
+		if len(tags[0]) > 0 {
+			name = tags[0]
+		}
+		if len(tags[1]) > 0 {
+			fType = tags[1]
+		}
+	case 3:
+		if len(tags[0]) > 0 {
+			name = tags[0]
+		}
+		if len(tags[1]) > 0 {
+			fType = tags[1]
+		}
+		if len(tags[2]) > 0 {
+			label = tags[2]
+		}
+	}
+
+	return
 }
 
 func isStructPtr(t reflect.Type) bool {
@@ -376,7 +544,6 @@ const (
 	complexKind
 	intKind
 	floatKind
-	integerKind
 	stringKind
 	uintKind
 )
@@ -512,4 +679,77 @@ func ge(arg1, arg2 interface{}) (bool, error) {
 	return !lessThan, nil
 }
 
-// go1.2 added template funcs. end
+// MapGet getting value from map by keys
+// usage:
+// Data["m"] = map[string]interface{} {
+//     "a": 1,
+//     "1": map[string]float64{
+//         "c": 4,
+//     },
+// }
+//
+// {{ map_get m "a" }} // return 1
+// {{ map_get m 1 "c" }} // return 4
+func MapGet(arg1 interface{}, arg2 ...interface{}) (interface{}, error) {
+	arg1Type := reflect.TypeOf(arg1)
+	arg1Val := reflect.ValueOf(arg1)
+
+	if arg1Type.Kind() == reflect.Map && len(arg2) > 0 {
+		// check whether arg2[0] type equals to arg1 key type
+		// if they are different, make conversion
+		arg2Val := reflect.ValueOf(arg2[0])
+		arg2Type := reflect.TypeOf(arg2[0])
+		if arg2Type.Kind() != arg1Type.Key().Kind() {
+			// convert arg2Value to string
+			var arg2ConvertedVal interface{}
+			arg2String := fmt.Sprintf("%v", arg2[0])
+
+			// convert string representation to any other type
+			switch arg1Type.Key().Kind() {
+			case reflect.Bool:
+				arg2ConvertedVal, _ = strconv.ParseBool(arg2String)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				arg2ConvertedVal, _ = strconv.ParseInt(arg2String, 0, 64)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+				arg2ConvertedVal, _ = strconv.ParseUint(arg2String, 0, 64)
+			case reflect.Float32, reflect.Float64:
+				arg2ConvertedVal, _ = strconv.ParseFloat(arg2String, 64)
+			case reflect.String:
+				arg2ConvertedVal = arg2String
+			default:
+				arg2ConvertedVal = arg2Val.Interface()
+			}
+			arg2Val = reflect.ValueOf(arg2ConvertedVal)
+		}
+
+		storedVal := arg1Val.MapIndex(arg2Val)
+
+		if storedVal.IsValid() {
+			var result interface{}
+
+			switch arg1Type.Elem().Kind() {
+			case reflect.Bool:
+				result = storedVal.Bool()
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				result = storedVal.Int()
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+				result = storedVal.Uint()
+			case reflect.Float32, reflect.Float64:
+				result = storedVal.Float()
+			case reflect.String:
+				result = storedVal.String()
+			default:
+				result = storedVal.Interface()
+			}
+
+			// if there is more keys, handle this recursively
+			if len(arg2) > 1 {
+				return MapGet(result, arg2[1:]...)
+			}
+			return result, nil
+		}
+		return nil, nil
+
+	}
+	return nil, nil
+}

@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -11,6 +25,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	// As tidb can't use go get, so disable the tidb testing now
+	// _ "github.com/pingcap/tidb"
 )
 
 // A slice string field.
@@ -62,41 +78,43 @@ func (e *SliceStringField) RawValue() interface{} {
 var _ Fielder = new(SliceStringField)
 
 // A json field.
-type JsonField struct {
+type JSONFieldTest struct {
 	Name string
 	Data string
 }
 
-func (e *JsonField) String() string {
+func (e *JSONFieldTest) String() string {
 	data, _ := json.Marshal(e)
 	return string(data)
 }
 
-func (e *JsonField) FieldType() int {
+func (e *JSONFieldTest) FieldType() int {
 	return TypeTextField
 }
 
-func (e *JsonField) SetRaw(value interface{}) error {
+func (e *JSONFieldTest) SetRaw(value interface{}) error {
 	switch d := value.(type) {
 	case string:
 		return json.Unmarshal([]byte(d), e)
 	default:
-		return fmt.Errorf("<JsonField.SetRaw> unknown value `%v`", value)
+		return fmt.Errorf("<JSONField.SetRaw> unknown value `%v`", value)
 	}
-	return nil
 }
 
-func (e *JsonField) RawValue() interface{} {
+func (e *JSONFieldTest) RawValue() interface{} {
 	return e.String()
 }
 
-var _ Fielder = new(JsonField)
+var _ Fielder = new(JSONFieldTest)
 
 type Data struct {
-	Id       int
+	ID       int `orm:"column(id)"`
 	Boolean  bool
 	Char     string    `orm:"size(50)"`
 	Text     string    `orm:"type(text)"`
+	JSON     string    `orm:"type(json);default({\"name\":\"json\"})"`
+	Jsonb    string    `orm:"type(jsonb)"`
+	Time     time.Time `orm:"type(time)"`
 	Date     time.Time `orm:"type(date)"`
 	DateTime time.Time `orm:"column(datetime)"`
 	Byte     byte
@@ -117,12 +135,15 @@ type Data struct {
 }
 
 type DataNull struct {
-	Id          int
+	ID          int             `orm:"column(id)"`
 	Boolean     bool            `orm:"null"`
 	Char        string          `orm:"null;size(50)"`
 	Text        string          `orm:"null;type(text)"`
+	JSON        string          `orm:"type(json);null"`
+	Jsonb       string          `orm:"type(jsonb);null"`
+	Time        time.Time       `orm:"null;type(time)"`
 	Date        time.Time       `orm:"null;type(date)"`
-	DateTime    time.Time       `orm:"null;column(datetime)""`
+	DateTime    time.Time       `orm:"null;column(datetime)"`
 	Byte        byte            `orm:"null"`
 	Rune        rune            `orm:"null"`
 	Int         int             `orm:"null"`
@@ -142,6 +163,27 @@ type DataNull struct {
 	NullBool    sql.NullBool    `orm:"null"`
 	NullFloat64 sql.NullFloat64 `orm:"null"`
 	NullInt64   sql.NullInt64   `orm:"null"`
+	BooleanPtr  *bool           `orm:"null"`
+	CharPtr     *string         `orm:"null;size(50)"`
+	TextPtr     *string         `orm:"null;type(text)"`
+	BytePtr     *byte           `orm:"null"`
+	RunePtr     *rune           `orm:"null"`
+	IntPtr      *int            `orm:"null"`
+	Int8Ptr     *int8           `orm:"null"`
+	Int16Ptr    *int16          `orm:"null"`
+	Int32Ptr    *int32          `orm:"null"`
+	Int64Ptr    *int64          `orm:"null"`
+	UintPtr     *uint           `orm:"null"`
+	Uint8Ptr    *uint8          `orm:"null"`
+	Uint16Ptr   *uint16         `orm:"null"`
+	Uint32Ptr   *uint32         `orm:"null"`
+	Uint64Ptr   *uint64         `orm:"null"`
+	Float32Ptr  *float32        `orm:"null"`
+	Float64Ptr  *float64        `orm:"null"`
+	DecimalPtr  *float64        `orm:"digits(8);decimals(4);null"`
+	TimePtr     *time.Time      `orm:"null;type(time)"`
+	DatePtr     *time.Time      `orm:"null;type(date)"`
+	DateTimePtr *time.Time      `orm:"null"`
 }
 
 type String string
@@ -162,7 +204,7 @@ type Float32 float64
 type Float64 float64
 
 type DataCustom struct {
-	Id      int
+	ID      int `orm:"column(id)"`
 	Boolean Boolean
 	Char    string `orm:"size(50)"`
 	Text    string `orm:"type(text)"`
@@ -185,38 +227,40 @@ type DataCustom struct {
 
 // only for mysql
 type UserBig struct {
-	Id   uint64
+	ID   uint64 `orm:"column(id)"`
 	Name string
 }
 
 type User struct {
-	Id         int
-	UserName   string `orm:"size(30);unique"`
-	Email      string `orm:"size(100)"`
-	Password   string `orm:"size(100)"`
-	Status     int16  `orm:"column(Status)"`
-	IsStaff    bool
-	IsActive   bool      `orm:"default(1)"`
-	Created    time.Time `orm:"auto_now_add;type(date)"`
-	Updated    time.Time `orm:"auto_now"`
-	Profile    *Profile  `orm:"null;rel(one);on_delete(set_null)"`
-	Posts      []*Post   `orm:"reverse(many)" json:"-"`
-	ShouldSkip string    `orm:"-"`
-	Nums       int
-	Langs      SliceStringField `orm:"size(100)"`
-	Extra      JsonField        `orm:"type(text)"`
+	ID           int    `orm:"column(id)"`
+	UserName     string `orm:"size(30);unique"`
+	Email        string `orm:"size(100)"`
+	Password     string `orm:"size(100)"`
+	Status       int16  `orm:"column(Status)"`
+	IsStaff      bool
+	IsActive     bool      `orm:"default(true)"`
+	Created      time.Time `orm:"auto_now_add;type(date)"`
+	Updated      time.Time `orm:"auto_now"`
+	Profile      *Profile  `orm:"null;rel(one);on_delete(set_null)"`
+	Posts        []*Post   `orm:"reverse(many)" json:"-"`
+	ShouldSkip   string    `orm:"-"`
+	Nums         int
+	Langs        SliceStringField `orm:"size(100)"`
+	Extra        JSONFieldTest    `orm:"type(text)"`
+	unexport     bool             `orm:"-"`
+	unexportBool bool
 }
 
 func (u *User) TableIndex() [][]string {
 	return [][]string{
-		[]string{"Id", "UserName"},
-		[]string{"Id", "Created"},
+		{"Id", "UserName"},
+		{"Id", "Created"},
 	}
 }
 
 func (u *User) TableUnique() [][]string {
 	return [][]string{
-		[]string{"UserName", "Email"},
+		{"UserName", "Email"},
 	}
 }
 
@@ -226,7 +270,7 @@ func NewUser() *User {
 }
 
 type Profile struct {
-	Id       int
+	ID       int `orm:"column(id)"`
 	Age      int16
 	Money    float64
 	User     *User `orm:"reverse(one)" json:"-"`
@@ -243,7 +287,7 @@ func NewProfile() *Profile {
 }
 
 type Post struct {
-	Id      int
+	ID      int       `orm:"column(id)"`
 	User    *User     `orm:"rel(fk)"`
 	Title   string    `orm:"size(60)"`
 	Content string    `orm:"type(text)"`
@@ -254,7 +298,7 @@ type Post struct {
 
 func (u *Post) TableIndex() [][]string {
 	return [][]string{
-		[]string{"Id", "Created"},
+		{"Id", "Created"},
 	}
 }
 
@@ -264,7 +308,7 @@ func NewPost() *Post {
 }
 
 type Tag struct {
-	Id       int
+	ID       int     `orm:"column(id)"`
 	Name     string  `orm:"size(30)"`
 	BestPost *Post   `orm:"rel(one);null"`
 	Posts    []*Post `orm:"reverse(many)" json:"-"`
@@ -276,7 +320,7 @@ func NewTag() *Tag {
 }
 
 type PostTags struct {
-	Id   int
+	ID   int   `orm:"column(id)"`
 	Post *Post `orm:"rel(fk)"`
 	Tag  *Tag  `orm:"rel(fk)"`
 }
@@ -286,7 +330,7 @@ func (m *PostTags) TableName() string {
 }
 
 type Comment struct {
-	Id      int
+	ID      int       `orm:"column(id)"`
 	Post    *Post     `orm:"rel(fk);column(post)"`
 	Content string    `orm:"type(text)"`
 	Parent  *Comment  `orm:"null;rel(fk)"`
@@ -296,6 +340,70 @@ type Comment struct {
 func NewComment() *Comment {
 	obj := new(Comment)
 	return obj
+}
+
+type Group struct {
+	ID          int `orm:"column(gid);size(32)"`
+	Name        string
+	Permissions []*Permission `orm:"reverse(many)" json:"-"`
+}
+
+type Permission struct {
+	ID     int `orm:"column(id)"`
+	Name   string
+	Groups []*Group `orm:"rel(m2m);rel_through(github.com/astaxie/beego/orm.GroupPermissions)"`
+}
+
+type GroupPermissions struct {
+	ID         int         `orm:"column(id)"`
+	Group      *Group      `orm:"rel(fk)"`
+	Permission *Permission `orm:"rel(fk)"`
+}
+
+type ModelID struct {
+	ID int64
+}
+
+type ModelBase struct {
+	ModelID
+
+	Created time.Time `orm:"auto_now_add;type(datetime)"`
+	Updated time.Time `orm:"auto_now;type(datetime)"`
+}
+
+type InLine struct {
+	// Common Fields
+	ModelBase
+
+	// Other Fields
+	Name  string `orm:"unique"`
+	Email string
+}
+
+func NewInLine() *InLine {
+	return new(InLine)
+}
+
+type InLineOneToOne struct {
+	// Common Fields
+	ModelBase
+
+	Note   string
+	InLine *InLine `orm:"rel(fk);column(inline)"`
+}
+
+func NewInLineOneToOne() *InLineOneToOne {
+	return new(InLineOneToOne)
+}
+
+type IntegerPk struct {
+	ID    int64 `orm:"pk"`
+	Value string
+}
+
+type UintPk struct {
+	ID   uint32 `orm:"pk"`
+	Name string
 }
 
 var DBARGS = struct {
@@ -312,6 +420,7 @@ var (
 	IsMysql    = DBARGS.Driver == "mysql"
 	IsSqlite   = DBARGS.Driver == "sqlite3"
 	IsPostgres = DBARGS.Driver == "postgres"
+	IsTidb     = DBARGS.Driver == "tidb"
 )
 
 var (
@@ -331,6 +440,7 @@ Default DB Drivers.
    mysql: https://github.com/go-sql-driver/mysql
  sqlite3: https://github.com/mattn/go-sqlite3
 postgres: https://github.com/lib/pq
+tidb: https://github.com/pingcap/tidb
 
 usage:
 
@@ -338,6 +448,7 @@ go get -u github.com/astaxie/beego/orm
 go get -u github.com/go-sql-driver/mysql
 go get -u github.com/mattn/go-sqlite3
 go get -u github.com/lib/pq
+go get -u github.com/pingcap/tidb
 
 #### MySQL
 mysql -u root -e 'create database orm_test;'
@@ -357,6 +468,12 @@ psql -c 'create database orm_test;' -U postgres
 export ORM_DRIVER=postgres
 export ORM_SOURCE="user=postgres dbname=orm_test sslmode=disable"
 go test -v github.com/astaxie/beego/orm
+
+#### TiDB
+export ORM_DRIVER=tidb
+export ORM_SOURCE='memory://test/test'
+go test -v github.com/astaxie/beego/orm
+
 `)
 		os.Exit(2)
 	}
@@ -364,7 +481,7 @@ go test -v github.com/astaxie/beego/orm
 	RegisterDataBase("default", DBARGS.Driver, DBARGS.Source, 20)
 
 	alias := getDbAlias("default")
-	if alias.Driver == DR_MySQL {
+	if alias.Driver == DRMySQL {
 		alias.Engine = "INNODB"
 	}
 

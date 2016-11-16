@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package orm
 
 import (
@@ -9,14 +23,15 @@ import (
 	"time"
 )
 
+// Log implement the log.Logger
 type Log struct {
 	*log.Logger
 }
 
-// set io.Writer to create a Logger.
+// NewLog set io.Writer to create a Logger.
 func NewLog(out io.Writer) *Log {
 	d := new(Log)
-	d.Logger = log.New(out, "[ORM]", 1e9)
+	d.Logger = log.New(out, "[ORM]", log.LstdFlags)
 	return d
 }
 
@@ -27,7 +42,7 @@ func debugLogQueies(alias *alias, operaton, query string, t time.Time, err error
 	if err != nil {
 		flag = "FAIL"
 	}
-	con := fmt.Sprintf(" - %s - [Queries/%s] - [%s / %11s / %7.1fms] - [%s]", t.Format(format_DateTime), alias.Name, flag, operaton, elsp, query)
+	con := fmt.Sprintf(" -[Queries/%s] - [%s / %11s / %7.1fms] - [%s]", alias.Name, flag, operaton, elsp, query)
 	cons := make([]string, 0, len(args))
 	for _, arg := range args {
 		cons = append(cons, fmt.Sprintf("%v", arg))

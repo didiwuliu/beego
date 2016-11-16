@@ -1,3 +1,17 @@
+// Copyright 2014 beego Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package utils
 
 import (
@@ -30,7 +44,7 @@ func FileExists(name string) bool {
 	return true
 }
 
-// Search a file in paths.
+// SearchFile Search a file in paths.
 // this is often used in search config file in /etc ~/
 func SearchFile(filename string, paths ...string) (fullpath string, err error) {
 	for _, path := range paths {
@@ -42,7 +56,7 @@ func SearchFile(filename string, paths ...string) (fullpath string, err error) {
 	return
 }
 
-// like command grep -E
+// GrepFile like command grep -E
 // for example: GrepFile(`^hello`, "hello.txt")
 // \n is striped while read
 func GrepFile(patten string, filename string) (lines []string, err error) {
@@ -58,23 +72,29 @@ func GrepFile(patten string, filename string) (lines []string, err error) {
 	lines = make([]string, 0)
 	reader := bufio.NewReader(fd)
 	prefix := ""
+	isLongLine := false
 	for {
 		byteLine, isPrefix, er := reader.ReadLine()
 		if er != nil && er != io.EOF {
 			return nil, er
 		}
+		if er == io.EOF {
+			break
+		}
 		line := string(byteLine)
 		if isPrefix {
 			prefix += line
 			continue
+		} else {
+			isLongLine = true
 		}
 
 		line = prefix + line
+		if isLongLine {
+			prefix = ""
+		}
 		if re.MatchString(line) {
 			lines = append(lines, line)
-		}
-		if er == io.EOF {
-			break
 		}
 	}
 	return lines, nil
